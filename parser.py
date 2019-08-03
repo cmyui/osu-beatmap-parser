@@ -71,8 +71,6 @@ def ParseBeatmap(f):
     f.close()
     del f
 
-    #print(data)
-
     # Check for fucked formatting?
     # Do this to find broken things right off the bat.
     try: osu_file_version = int(data[0][-2:].replace("v", ""))
@@ -93,6 +91,16 @@ def ParseBeatmap(f):
     SECTIONS = NEWL.join(_SECTIONS).split("----")
 
     del _SECTIONS
+
+    # yikes
+    AudioFilename, AudioLeadIn, PreviewTime, Countdown, SampleSet, StackLeniency, Mode, LetterboxInBreaks, WidescreenStoryboard, SpecialStyle, UseSkinSprites, \
+    Bookmarks, DistanceSpacing, BeatDivisor, GridSize, TimelineZoom, \
+    Title, TitleUnicode, Artist, ArtistUnicode, Creator, Version, Source, Tags, BeatmapID,BeatmapSetID, \
+    HPDrainRate, CircleSize, OverallDifficulty, ApproachRate, SliderMultiplier, SliderTickRate, \
+    BackgroundFileName, Breaks, Videos, \
+    TimingPoints, \
+    Colours, \
+    HitObjects = [None] * 38
 
     for _section in SECTIONS:
         section = _section[:-1].split("\n")
@@ -168,9 +176,7 @@ def ParseBeatmap(f):
 
                 try:
                     if key == "HPDrainRate": HPDrainRate = float(val)
-                    elif key == "CircleSize":
-                        CircleSize = float(val)
-                        OsuPixels  = osu_pixels(CircleSize)
+                    elif key == "CircleSize": CircleSize = float(val)
                     elif key == "OverallDifficulty": OverallDifficulty = float(val)
                     elif key == "ApproachRate": ApproachRate = float(val)
                     elif key == "SliderMultiplier": SliderMultiplier = float(val)
@@ -242,8 +248,8 @@ def ParseBeatmap(f):
                 if int(object_type) & 1: # Hitcircle
                     circle_start_time = time.time()
 
-                    # TODO: fail hitcircle stuff
-                    #handle_error(f"FAILED HITCIRCLE - {split}", 0)
+                    # 5, 6 with extras.
+                    if split_len not in (5,6): handle_error(f"FAILED HITCIRCLE - {split}", 0)
 
                     if split_len == 6:
                         extras = split[5]
@@ -302,18 +308,70 @@ def ParseBeatmap(f):
                 del split, x, y, object_time, object_type, hitSound, split_len
             del line
         del section
-
     del SECTIONS
+
+    # Now that we have fully parsed our beatmap and assigned values, let's return them all.
+    BeatmapData = {
+        "General": {
+            "AudioFilename": AudioFilename,
+            "AudioLeadIn": AudioLeadIn,
+            "PreviewTime": PreviewTime,
+            "Countdown": Countdown,
+            "SampleSet": SampleSet,
+            "StackLeniency": StackLeniency,
+            "Mode": Mode,
+            "LetterboxInBreaks": LetterboxInBreaks,
+            "WidescreenStoryboard": WidescreenStoryboard,
+            "SpecialStyle": SpecialStyle,
+            "UseSkinSprites": UseSkinSprites
+        },
+        "Editor": {
+            "Bookmarks": Bookmarks,
+            "DistanceSpacing": DistanceSpacing,
+            "BeatDivisor": BeatDivisor,
+            "GridSize": GridSize,
+            "TimelineZoom": TimelineZoom
+        },
+        "Metadata": {
+            "Title": Title,
+            "TitleUnicode": TitleUnicode,
+            "Artist": Artist,
+            "ArtistUnicode": ArtistUnicode,
+            "Creator": Creator,
+            "Version": Version,
+            "Source": Source,
+            "Tags": Tags,
+            "BeatmapID": BeatmapID,
+            "BeatmapSetID": BeatmapSetID
+        },
+        "Difficulty": {
+            "HPDrainRate": HPDrainRate,
+            "CircleSize": CircleSize,
+            "OsuPixels": osu_pixels(CircleSize), # Not directly from beatmap, but probably useful? TODO: Add it as an option.
+            "OverallDifficulty": OverallDifficulty,
+            "ApproachRate": ApproachRate,
+            "SliderMultiplier": SliderMultiplier,
+            "SliderTickRate": SliderTickRate
+        },
+        "Events": {
+            "BackgroundFileName": BackgroundFileName,
+            "Breaks": Breaks,
+            "Videos": Videos
+        },
+        "TimingPoints": TimingPoints,
+        "Colours": Colours,
+        "HitObject": HitObjects
+    }
 
     # Just return literally everything we've done.
     # Since we memory handle properly, it returns only the relevant data.
-    return locals()
+    return BeatmapData
 
 
 if __name__ == "__main__":
     BeatmapData = ParseBeatmap(OSU_FILE)
 
-    #print(BeatmapData)
+    print(BeatmapData)
     print(f"\n{CYAN}DONE. Time taken: {'%.3f' % round((time.time() - start_full_time) * 1000, 1)} milliseconds.{ENDC}")
 
 del start_full_time, debug, \
