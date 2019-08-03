@@ -3,8 +3,7 @@ import time
 from datetime import datetime
 start_full_time = time.time()
 
-global RED, GREEN, CYAN, PINK, YELLOW, ENDC
-RED    = '\033[91m'
+global GREEN, CYAN, PINK, YELLOW, ENDC
 GREEN  = '\033[92m'
 CYAN   = '\033[96m'
 PINK   = '\033[95m'
@@ -45,12 +44,13 @@ def handle_error(err, exit, type=0):
     :Integer type: The type of log. 0: Error, 1: Warning.
     """
 
+    RED = '\033[91m'
     log_file = open("parser.log", "a+")
     print(f"{YELLOW if type else RED}{err}{ENDC}")
     log_file.write(f"[{'WARN' if type else 'ERROR'}] [{datetime.now().strftime('%Y-%m-%d %I:%M:%S:%f%p')}] {err}{NEWL}")
     log_file.close()
     del log_file
-    if exit: os._exit(exit)
+    if exit: os._exit(exit) # TODO: return something and handle it that way? This seems to save quite a bit of lines though.. I dunno i'll check how 'safe' it is.
 
 
 def ParseBeatmap(f):
@@ -65,24 +65,18 @@ def ParseBeatmap(f):
     Return will include all information from every section of the beatmap.
     """
 
-    _data = f.read()
-
-    # Check if beatmap is empty.
-    if not _data: handle_error(f"{RED}Beatmap file is either empty, or failed to be read.{ENDC}", 1)
-
-    data = _data.split(NEWL)
-    #print(f"{data}\n\n\n{f.readlines()}")
-    del _data
-
-
-    # Now that we have our data cached, close our pipe.
+    # Read data from beatmap, splitting it by newlines.
+    data = f.read().splitlines()
+    if not data: handle_error(f"Beatmap file is either empty, or failed to be read.", 1)
     f.close()
     del f
+
+    #print(data)
 
     # Check for fucked formatting?
     # Do this to find broken things right off the bat.
     try: osu_file_version = int(data[0][-2:].replace("v", ""))
-    except: handle_error(f"{RED}Beatmap file is invalid, and could not be parsed.{ENDC}", 1)
+    except: handle_error(f"Beatmap file is invalid, and could not be parsed.", 1)
 
     print(f"{CYAN}osu file format: v{osu_file_version}{ENDC}")
 
@@ -90,13 +84,13 @@ def ParseBeatmap(f):
 
     _SECTIONS = []
 
-    for line in data:
+    for line in data[2:]:
         if not line: continue # ignore empty lines
         if line[0] == "[" and line[-1] == "]": _SECTIONS.append(f"----{line[1:-1].lower()}") # Delimiter = "--" for
         else: _SECTIONS.append(line)
     del data, line
 
-    SECTIONS = NEWL.join(_SECTIONS).split("----")[1:]
+    SECTIONS = NEWL.join(_SECTIONS).split("----")
 
     del _SECTIONS
 
