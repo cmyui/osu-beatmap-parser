@@ -49,7 +49,7 @@ def handle_error(err, exit, type=0):
     print(f"{YELLOW if type else RED}{err}{ENDC}")
     log_file.write(f"[{'WARN' if type else 'ERROR'}] [{datetime.now().strftime('%Y-%m-%d %I:%M:%S:%f%p')}] {err}{NEWL}")
     log_file.close()
-    del log_file
+    del log_file, RED
     if exit: os._exit(exit) # TODO: return something and handle it that way? This seems to save quite a bit of lines though.. I dunno i'll check how 'safe' it is.
 
 
@@ -316,8 +316,8 @@ if __name__ == "__main__":
     #print(BeatmapData)
     print(f"\n{CYAN}DONE. Time taken: {'%.3f' % round((time.time() - start_full_time) * 1000, 1)} milliseconds.{ENDC}")
 
-del start_full_time,    \
-    RED, GREEN, CYAN,   \
+del start_full_time, debug, \
+    NEWL, GREEN, CYAN,  \
     PINK, YELLOW, ENDC, \
-    NEWL, debug
+    
     #^^^^^^^^^^^^^^^^^^^^ why? TODO: check if this is faster there is literally no way it doesnot just do this automaitcally but i need to know how it works now that i've thought about it im gonna learn the whole ass thing
