@@ -29,11 +29,7 @@ def osu_pixels(cs):
 def ParseBeatmap(fileText, file=None, IncludeEditor=False):
     """
     Parse the full beatmap given.
-    This will return all variables in locals().
-
-    **I'm not sure if this is unorthodox, but in my case, I think it will work best this way for what I want it to do.**
-
-    That means this function is a mess of a memory map!
+    This function is a mess of a memory map!
 
     Return will include all information from every section of the beatmap.
     """
@@ -165,7 +161,7 @@ def ParseBeatmap(fileText, file=None, IncludeEditor=False):
             Breaks = []
             Videos = []
             for line in section[1:]:
-                if line[:1] == "//": continue
+                if line[:2] == "//": continue
                 val = line.split(",") # For whatever reason peppy made some things a string when they could all just be an int (char) but ok maybe im missing something? this section is weird shit
 
                 if val[0] == '0':
@@ -348,10 +344,13 @@ def ParseBeatmap(fileText, file=None, IncludeEditor=False):
 """ And for users using our program directly.. """
 
 if __name__ == "__main__":
-    filename = input(f"{CYAN}What is the name of the .osu file (Include extension)?{ENDC}\n>> ")
+    import sys
+    filename = sys.argv[1] if len(sys.argv) > 1 else input(f"{CYAN}What is the name of the .osu file (Include extension)?{ENDC}\n>> ")
     start_full_time = time.time()
     BeatmapData = None
     with open(filename, "r") as f:
         BeatmapData = ParseBeatmap(0, f)
-    if BeatmapData: print(f"{CYAN}DONE. Time taken: {'%.3f' % round((time.time() - start_full_time) * 1000, 1)} milliseconds.{ENDC}")
-    else: print(f"{RED}[ERR] {BeatmapData}.{ENDC}")
+
+    if not BeatmapData: print(f"{RED}[ERR] {BeatmapData}.{ENDC}")
+    elif debug: print(f"{CYAN}DONE. Time taken: {'%.3f' % round((time.time() - start_full_time) * 1000, 1)} milliseconds.{ENDC}")
+    else: print(BeatmapData)
