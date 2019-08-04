@@ -1,28 +1,19 @@
 import os
 import time
 from datetime import datetime
-start_full_time = time.time()
 
-global GREEN, CYAN, PINK, YELLOW, ENDC
+
+""" Define some global variables we'll be using throughout the program. """
+
+global GREEN, CYAN, PINK, YELLOW, RED, ENDC, NEWL, debug
 GREEN  = '\033[92m'
 CYAN   = '\033[96m'
 PINK   = '\033[95m'
 YELLOW = '\033[93m'
+RED    = '\033[91m'
 ENDC   = '\033[0m'
-
-
-""" Define some globals. """
-
-global debug
-debug = True
-
-global NEWL
-NEWL = "\r\n" if os.name == "nt" else "\n"
-
-try: # Open up a pipe for osu beatmap.
-    global OSU_FILE
-    OSU_FILE = open(input("What is the name of the .osu file (Include extension)?\n>> "), "r") # TODO: take arg1 i guess if directly running the file?
-except: handle_error("Beatmap file could not be found.", 1)
+NEWL   = "\r\n" if os.name == "nt" else "\n"
+debug = False
 
 
 """ Now for our functions. """
@@ -35,25 +26,7 @@ def osu_pixels(cs):
     return 54.4 - 4.48 * cs
 
 
-def handle_error(err, exit, type=0):
-    """
-    Handle errors a nice and elegant way.
-    
-    :String err: Our error.
-    :Boolean exit: Whether to halt the program because of this error.
-    :Integer type: The type of log. 0: Error, 1: Warning.
-    """
-
-    RED = '\033[91m'
-    log_file = open("parser.log", "a+")
-    print(f"{YELLOW if type else RED}{err}{ENDC}")
-    log_file.write(f"[{'WARN' if type else 'ERROR'}] [{datetime.now().strftime('%Y-%m-%d %I:%M:%S:%f%p')}] {err}{NEWL}")
-    log_file.close()
-    del log_file, RED
-    if exit: os._exit(exit) # TODO: return something and handle it that way? This seems to save quite a bit of lines though.. I dunno i'll check how 'safe' it is.
-
-
-def ParseBeatmap(f):
+def ParseBeatmap(fileText, file=None, IncludeEditor=False):
     """
     Parse the full beatmap given.
     This will return all variables in locals().
@@ -65,26 +38,32 @@ def ParseBeatmap(f):
     Return will include all information from every section of the beatmap.
     """
 
-    # Read data from beatmap, splitting it by newlines.
-    data = f.read().splitlines()
-    if not data: handle_error(f"Beatmap file is either empty, or failed to be read.", 1)
-    f.close()
-    del f
+    if file: # Check if the user sent a file object, or is just sending raw text.
+        # Read data from beatmap, splitting it by newlines.
+        data = file.read().splitlines()
+        if not data: return "Beatmap file is either empty, or failed to be read."
+        file.close()
+        del file
+    else: # User sent raw text.
+        data = fileText.splitlines()
+        if not data: return "Data is either empty, or failed to be read."
+        del fileText
 
     # Check for fucked formatting?
     # Do this to find broken things right off the bat.
     try: osu_file_version = int(data[0][-2:].replace("v", ""))
-    except: handle_error(f"Beatmap file is invalid, and could not be parsed.", 1)
+    except: return "Beatmap file is invalid, and could not be parsed."
 
     print(f"{CYAN}osu file format: v{osu_file_version}{ENDC}")
 
-    if osu_file_version < 14: handle_error("At the moment, this parser only supports osu! file verions >= 14.", 1)
+    if osu_file_version < 14: return "At the moment, this parser only supports osu! file verions >= 14."
 
     _SECTIONS = []
 
     for line in data[2:]:
         if not line: continue # ignore empty lines
-        if line[0] == "[" and line[-1] == "]": _SECTIONS.append(f"----{line[1:-1].lower()}") # Delimiter = "--" for
+        if line[0] == "[" and line[-1] == "]":
+            _SECTIONS.append(f"----{line[1:-1].lower()}") # Delimiter
         else: _SECTIONS.append(line)
     del data, line
 
@@ -109,8 +88,8 @@ def ParseBeatmap(f):
         if section[0] == "general": # [General]
 
             for line in section[1:]:
-                key, val = line.split(": ")
-
+                if ": " in line: key, val = line.split(": ")
+                else: print(f"{YELLOW}[WARN] Unknown line format \"{line}\" in [General] section.{ENDC}");continue
                 try:
                     if key == "AudioFilename": AudioFilename = str(val)
                     elif key == "AudioLeadIn": AudioLeadIn = int(val)
@@ -123,21 +102,15 @@ def ParseBeatmap(f):
                     elif key == "WidescreenStoryboard": WidescreenStoryboard = bool(val)
                     elif key == "SpecialStyle": SpecialStyle = bool(val)
                     elif key == "UseSkinSprites": UseSkinSprites = bool(val)
-                    else: handle_error(f"Unknown key \"{key}\" in section - general.", 0, 1)
+                    else: print(f"{YELLOW}[WARN] Unknown key \"{key}\" in [General] section.{ENDC}")
                     del key, val
-                except: handle_error(".osu file format is invalid.", 1)
+                except: return ".osu file format is invalid."
             del line
 
-            # Actual TODO: this is stupid? why even bother? this will fuck up previous .osu versions. Stop doing shit like this!
-            ## TODO: this in every section.
-            #if not all([AudioFilename, AudioFilename, PreviewTime, Countdown, SampleSet, StackLeniency, Mode, LetterboxInBreaks, WidescreenStoryboard]):
-            #    handle_error(f"{RED}A required variable was not found in the [General] section.{ENDC}", 1)
-
-        # I don't know why anyone would ever care about this?
-        # TODO?: Perhaps add a flag to disable for speed improvements for "normal" users.
-        elif section[0] == "editor": # [Editor]
+        elif section[0] == "editor" and IncludeEditor: # [Editor]
             for line in section[1:]:
-                key, val = line.split(": ")
+                if ": " in line: key, val = line.split(": ")
+                else: print(f"{YELLOW}[WARN] Unknown line format \"{line}\" in [Editor] section.{ENDC}");continue
 
                 try:
                     if key == "Bookmarks": Bookmarks = val.split(",")
@@ -145,14 +118,15 @@ def ParseBeatmap(f):
                     elif key == "BeatDivisor": BeatDivisor = int(val)
                     elif key == "GridSize": GridSize = int(val)
                     elif key == "TimelineZoom": TimelineZoom = float(val)
-                    else: handle_error(f"Unknown key \"{key}\" in section - editor.", 0, 1)
+                    else: print(f"{YELLOW}[WARN] Unknown key \"{key}\" in [Editor] section.{ENDC}")
                     del key, val
-                except: handle_error(".osu file format is invalid.", 1)
+                except: return ".osu file format is invalid."
             del line
 
         elif section[0] == "metadata": # [Metadata]
             for line in section[1:]:
-                key, val = line.split(":")
+                if ":" in line: key, val = line.split(":")
+                else: print(f"{YELLOW}[WARN] Unknown line format \"{line}\" in [Metadata] section.{ENDC}");continue
 
                 try:
                     if key == "Title": Title = str(val)
@@ -165,14 +139,15 @@ def ParseBeatmap(f):
                     elif key == "Tags": Tags = str(val)
                     elif key == "BeatmapID": BeatmapID = int(val)
                     elif key == "BeatmapSetID": BeatmapSetID = int(val)
-                    else: handle_error(f"Unknown key \"{key}\" in section - metadata.", 0, 1)
+                    else: print(f"{YELLOW}[WARN] Unknown key \"{key}\" in [Metadata] section.{ENDC}")
                     del key, val
-                except: handle_error(".osu file format is invalid.", 1)
+                except: return ".osu file format is invalid."
             del line
 
         elif section[0] == "difficulty": # [Difficulty]
             for line in section[1:]:
-                key, val = line.split(":")
+                if ":" in line: key, val = line.split(":")
+                else: print(f"{YELLOW}[WARN] Unknown line format \"{line}\" in [Difficulty] section.{ENDC}");continue
 
                 try:
                     if key == "HPDrainRate": HPDrainRate = float(val)
@@ -181,9 +156,9 @@ def ParseBeatmap(f):
                     elif key == "ApproachRate": ApproachRate = float(val)
                     elif key == "SliderMultiplier": SliderMultiplier = float(val)
                     elif key == "SliderTickRate": SliderTickRate = float(val)
-                    else: handle_error(f"Unknown line format \"{line}\" in [Difficulty] section.", 0, 1)
+                    else: print(f"{YELLOW}[WARN] Unknown line format \"{line}\" in [Events] section.{ENDC}")
                     del key, val
-                except: handle_error(".osu file format is invalid.", 1)
+                except: return ".osu file format is invalid."
             del line
 
         elif section[0] == "events": # [Events]
@@ -199,7 +174,7 @@ def ParseBeatmap(f):
                     Breaks.append(f"{val[1]}:{val[2]}") # Append start to end.
                 elif val[0] == 'Video':
                     Videos.append([val[1], val[2]]) # StartTime, filename (w/ extension)
-                else: handle_error(f"Unknown line format \"{line}\" in [Events] section.", 0, 1)
+                else: print(f"{YELLOW}[WARN] Unknown line format \"{line}\" in [Events] section.{ENDC}")# TODO: will have to add ;continue here if we continue doing anything beyond this point!
                 # TODO Storyboards, bg colours, videos, etc.
                 del val
             del line
@@ -209,6 +184,11 @@ def ParseBeatmap(f):
             for _point in section[1:]:
 
                 point        = _point.split(",")
+
+                if len(point) != 8:
+                    print(f"{YELLOW}[WARN] Could not parse point \"{_point}\" in [TimingPoints] section.{ENDC}")
+                    continue
+
                 offset       = int(point[0])
                 ms_per_beat  = float(point[1])
                 meter        = int(point[2])
@@ -220,8 +200,8 @@ def ParseBeatmap(f):
                 del point
 
                 TimingPoints.append({"Offset": offset, "MSPerBeat": ms_per_beat, "Meter": meter,
-                                     "SampleSet": sample_set, "Volume": volume,
-                                     "Inherited": inherited,"KiaiMode": kiai_mode})
+                                    "SampleSet": sample_set, "Volume": volume,
+                                    "Inherited": inherited,"KiaiMode": kiai_mode})
 
                 del offset, ms_per_beat,  \
                     meter, sample_set,    \
@@ -232,7 +212,8 @@ def ParseBeatmap(f):
         elif section[0] == "colours": # [Colours]
             Colours = []#? no checks
             for line in section[1:]:
-                key, val = line.split(" : ")
+                if ": " in line: key, val = line.split(": ")
+                else: print(f"{YELLOW}[WARN] Unknown line format \"{line}\" in [Colours] section.{ENDC}");continue
 
                 Colours.append({key: val})
                 del key, val
@@ -249,7 +230,7 @@ def ParseBeatmap(f):
                     circle_start_time = time.time()
 
                     # 5, 6 with extras.
-                    if split_len not in (5,6): handle_error(f"FAILED HITCIRCLE - {split}", 0)
+                    if split_len not in (5,6): print(f"{YELLOW}[WARN] FAILED HITCIRCLE - \"{split}\" in [HitObjects] section.{ENDC}");continue
 
                     if split_len == 6:
                         extras = split[5]
@@ -262,10 +243,7 @@ def ParseBeatmap(f):
 
                 elif int(object_type) & 2: # Slider
                     slider_start_time = time.time()
-                    if split_len not in (8, 11):#?
-                        del slider_start_time
-                        handle_error(f"FAILED SLIDER - {split}", 0)
-                        continue
+                    if split_len not in (8, 11):print(f"{YELLOW}[WARN] FAILED SLIDER - \"{split}\" in [HitObjects] section.{ENDC}");del slider_start_time;continue#?
 
                     # Split up sliderType and curvePoints by |.
                     _s = split[5].split("|")
@@ -291,8 +269,7 @@ def ParseBeatmap(f):
                     spinner_start_time = time.time()
                     if split_len != 7:#?
                         del spinner_start_time
-                        handle_error(f"FAILED SPINNER - {split}", 0)
-                        continue
+                        print(f"{YELLOW}[WARN] FAILED SPINNER - \"{split}\" in [HitObjects] section.{ENDC}");continue
 
                     endTime = split[5]
                     if split_len == 7:
@@ -368,14 +345,13 @@ def ParseBeatmap(f):
     return BeatmapData
 
 
+""" And for users using our program directly.. """
+
 if __name__ == "__main__":
-    BeatmapData = ParseBeatmap(OSU_FILE)
-
-    print(BeatmapData)
-    print(f"\n{CYAN}DONE. Time taken: {'%.3f' % round((time.time() - start_full_time) * 1000, 1)} milliseconds.{ENDC}")
-
-del start_full_time, debug, \
-    NEWL, GREEN, CYAN,  \
-    PINK, YELLOW, ENDC, \
-    
-    #^^^^^^^^^^^^^^^^^^^^ why? TODO: check if this is faster there is literally no way it doesnot just do this automaitcally but i need to know how it works now that i've thought about it im gonna learn the whole ass thing
+    filename = input(f"{CYAN}What is the name of the .osu file (Include extension)?{ENDC}\n>> ")
+    start_full_time = time.time()
+    BeatmapData = None
+    with open(filename, "r") as f:
+        BeatmapData = ParseBeatmap(0, f)
+    if BeatmapData: print(f"{CYAN}DONE. Time taken: {'%.3f' % round((time.time() - start_full_time) * 1000, 1)} milliseconds.{ENDC}")
+    else: print(f"{RED}[ERR] {BeatmapData}.{ENDC}")
